@@ -292,6 +292,7 @@ resource "null_resource" "common_setup" {
 resource "null_resource" "bootstrap_first_master" {
   depends_on = [
     # aws_lb.control_plane,
+    null_resource.common_setup,
     aws_network_interface_sg_attachment.master
   ]
 
@@ -348,23 +349,27 @@ resource "null_resource" "bootstrap_first_master" {
   }
 }
 
-data "external" "join_command" {
+data "external" "join_command_master" {
   depends_on = [null_resource.bootstrap_first_master]
 
   program = ["bash", "-c", <<-EOT
     ssh -o StrictHostKeyChecking=no \
       -i ${var.private_key_path} \
       -J ${var.ssh_user}@${var.bastion_node.public_ip} \
-      ${var.ssh_user}@${var.master_nodes[0].private_ip} <<'EOF' | jq -Rs '
-        split("___SPLIT___") |
-        {
-          master: .[0],
-          worker: .[1]
-        }'
-cat /tmp/join-command-master.sh
-echo "___SPLIT___"
-cat /tmp/join-command-worker.sh
-EOF
+      ${var.ssh_user}@${var.master_nodes[0].private_ip} \
+      'cat /tmp/join-command-master.sh' | jq -Rs '{command: .}'
+  EOT
+  ]
+}
+data "external" "join_command_worker" {
+  depends_on = [null_resource.bootstrap_first_master]
+
+  program = ["bash", "-c", <<-EOT
+    ssh -o StrictHostKeyChecking=no \
+      -i ${var.private_key_path} \
+      -J ${var.ssh_user}@${var.bastion_node.public_ip} \
+      ${var.ssh_user}@${var.master_nodes[0].private_ip} \
+      'cat /tmp/join-command-worker.sh' | jq -Rs '{command: .}'
   EOT
   ]
 }
@@ -373,7 +378,10 @@ EOF
 resource "null_resource" "join_masters" {
   count = length(var.master_nodes) - 1
 
-  depends_on = [data.external.join_command]
+  depends_on = [
+    null_resource.bootstrap_first_master,
+    data.external.join_command_master
+  ]
 
   connection {
     type                = "ssh"
@@ -386,7 +394,7 @@ resource "null_resource" "join_masters" {
   }
 
   provisioner "file" {
-    content     = data.external.join_command.result.master
+    content     = data.external.join_command_master.result.command
     destination = "/tmp/join-command-master.sh"
   }
 
@@ -412,7 +420,7 @@ resource "null_resource" "join_workers" {
   depends_on = [
     null_resource.bootstrap_first_master,
     null_resource.join_masters,
-    data.external.join_command
+    data.external.join_command_worker
   ]
 
   connection {
@@ -426,7 +434,7 @@ resource "null_resource" "join_workers" {
   }
 
   provisioner "file" {
-    content     = data.external.join_command.result.worker
+    content     = data.external.join_command_worker.result.command
     destination = "/tmp/join-command-worker.sh"
   }
 

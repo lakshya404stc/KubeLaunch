@@ -11,8 +11,7 @@ echo "=========================================="
 
 # Initialize the cluster
 echo "Initializing Kubernetes cluster..."
-sudo kubeadm init --config=/tmp/kubeadm-config.yaml --upload-certs \
-  > /tmp/kubeadm-init.log 2>&1
+sudo /usr/bin/kubeadm init --config=/tmp/kubeadm-config.yaml --upload-certs
 
 # Configure kubectl for ubuntu user
 mkdir -p $HOME/.kube
