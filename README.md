@@ -63,7 +63,7 @@ The project follows a clean, professional Terraform directory structure to separ
 
 1. Clone the repository:
 ```code
-   git clone https://github.com/lakshya404stc/Terraform-Multi-AZ-Multi-Master-Kubernetes-Cluster-AWS.git
+   git clone https://github.com/lakshya404stc/KubeLaunch.git
 ```
 
 2. Configure your variables:
